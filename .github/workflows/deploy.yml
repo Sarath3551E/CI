@@ -1,9 +1,9 @@
-name: Deploy to AWS EC2
+name: deploy to AWS EC2
 
 on:
   push:
     branches:
-      - main  # Trigger the workflow on push to the main branch
+      - main  # Trigger workflow on push to main
 
 jobs:
   deploy:
@@ -32,13 +32,22 @@ jobs:
 
     - name: Stop and Remove Old Container (if exists)
       run: |
-        sudo docker ps -q --filter "name=my-html-container" | grep -q . && docker stop my-html-container && docker rm my-html-container || echo "No existing container to stop"
+        if [ "$(sudo docker ps -aq -f name=my-html-container)" ]; then
+          echo "Stopping and removing existing container..."
+          sudo docker stop my-html-container
+          sudo docker rm my-html-container
+        else
+          echo "No existing container found."
+        fi
+
+    - name: Free Up Port (Ensure 8080 is Available)
+      run: sudo fuser -k 8080/tcp || true
 
     - name: Run New Container
       run: sudo docker run -d -p 8080:80 --name my-html-container my-html-app
 
     - name: Wait for Container to Initialize
-      run: sleep 15
+      run: sleep 10
 
     - name: Verify Deployment
       run: curl -I http://localhost:8080 || exit 1
