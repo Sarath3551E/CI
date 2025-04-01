@@ -1,0 +1,53 @@
+name: Deploy to AWS EC2
+
+on:
+  push:
+    branches:
+      - main  # Trigger workflow on push to main
+
+jobs:
+  deploy:
+    runs-on: self-hosted  # Use EC2 as a self-hosted runner
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v3
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '14'
+
+    - name: Install Dependencies
+      run: npm install
+
+    - name: Run Unit Tests
+      run: npm test
+
+    - name: Run Integration Tests
+      run: npm run test:integration
+
+    - name: Build Docker Image
+      run: sudo docker build -t my-html-app .
+
+    - name: Stop and Remove Old Container (if exists)
+      run: |
+        if [ "$(sudo docker ps -aq -f name=my-html-container)" ]; then
+          echo "Stopping and removing existing container..."
+          sudo docker stop my-html-container
+          sudo docker rm my-html-container
+        else
+          echo "No existing container found."
+        fi
+
+    - name: Free Up Port (Ensure 8080 is Available)
+      run: sudo fuser -k 8080/tcp || true
+
+    - name: Run New Container
+      run: sudo docker run -d -p 8080:80 --name my-html-container my-html-app
+
+    - name: Wait for Container to Initialize
+      run: sleep 10
+
+    - name: Verify Deployment
+      run: curl -I http://localhost:8080 || exit 1
